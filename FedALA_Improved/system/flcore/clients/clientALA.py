@@ -25,6 +25,7 @@ class clientALA(object):
         self.local_steps = args.local_steps
         self.class_balanced = getattr(args, 'class_balanced', False)
         self.loss = nn.CrossEntropyLoss()
+        self.aggregation_loss = nn.CrossEntropyLoss()
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
 
         self.eta = args.eta
@@ -129,8 +130,21 @@ class clientALA(object):
                     x = x.to(self.device)
                 y = y.to(self.device)
                 output = self.model(x)
-                loss = self.loss(output, y)
+                loss = self.aggregation_loss(output, y)
                 train_num += y.shape[0]
                 losses += loss.item() * y.shape[0]
 
         return losses, train_num
+
+    def test_predictions(self, model=None):
+        loader = self.load_test_data()
+        model = self.model if model is None else model
+        model.eval()
+        probs, labels = [], []
+        with torch.no_grad():
+            for x, y in loader:
+                x = x[0].to(self.device) if type(x) == type([]) else x.to(self.device)
+                out = model(x)
+                probs.append(F.softmax(out, dim=1).cpu().numpy())
+                labels.append(y.cpu().numpy())
+        return np.concatenate(labels), np.concatenate(probs)

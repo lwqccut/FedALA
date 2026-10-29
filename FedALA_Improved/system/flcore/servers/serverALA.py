@@ -2,6 +2,8 @@ import copy
 import numpy as np
 import torch
 import time
+from sklearn.metrics import roc_auc_score
+from sklearn.preprocessing import label_binarize
 from flcore.clients.clientALA import *
 from utils.data_utils import read_client_data
 from threading import Thread
@@ -166,7 +168,17 @@ class FedALA(object):
         stats_train = self.train_metrics()
 
         test_acc = sum(stats[2])*1.0 / sum(stats[1])
-        test_auc = sum(stats[3])*1.0 / sum(stats[1])
+        # Compute one global AUC after concatenating all client predictions.
+        # Per-client AUC is unstable when Dirichlet clients lack classes.
+        all_y, all_p = [], []
+        for c in self.clients:
+            y, p = c.test_predictions()
+            all_y.append(y)
+            all_p.append(p)
+        y_global = np.concatenate(all_y)
+        p_global = np.concatenate(all_p)
+        y_onehot = label_binarize(y_global, classes=np.arange(self.clients[0].num_classes))
+        test_auc = roc_auc_score(y_onehot, p_global, average='micro')
         train_loss = sum(stats_train[2])*1.0 / sum(stats_train[1])
         accs = [a / n for a, n in zip(stats[2], stats[1])]
         aucs = [a / n for a, n in zip(stats[3], stats[1])]
