@@ -2,6 +2,7 @@ import copy
 import numpy as np
 import torch
 import time
+import os
 import torch.nn.functional as F
 from flcore.clients.clientALA import *
 from utils.data_utils import read_client_data
@@ -41,6 +42,9 @@ class FedALA(object):
         self.Budget = []
 
     def train(self):
+        checkpoint_dir = os.environ.get('FEDALA_CHECKPOINT_DIR')
+        if checkpoint_dir:
+            os.makedirs(checkpoint_dir, exist_ok=True)
         for i in range(self.global_rounds+1):
             s_t = time.time()
             self.selected_clients = self.select_clients()
@@ -64,6 +68,10 @@ class FedALA(object):
 
             self.Budget.append(time.time() - s_t)
             print('-'*50, self.Budget[-1])
+            if checkpoint_dir:
+                torch.save({'round': i, 'model': self.global_model.state_dict(),
+                            'test_acc': self.rs_test_acc, 'train_loss': self.rs_train_loss},
+                           os.path.join(checkpoint_dir, f'round_{i:04d}.pt'))
 
         print("\nBest global accuracy.")
         print(max(self.rs_test_acc))
